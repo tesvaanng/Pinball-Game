@@ -171,4 +171,11 @@ RunAfterSetup();
   4. 最後才扣怪物 HP
   5. 呼叫 `Monster.OnHitReceived()`（例如反擊怪增加受擊計數）
 - 如果怪物在中途死亡，剩餘攻擊次數會自動轉向下一隻存活怪物。
-- `BigNumber` 是浮點數，累積多次小額傷害可能留下 `1e-14` 之類的殘值；`CombatManager` 與 `Health` 會把「幾乎為 0」的 HP 視為 0，避免怪物明明該死卻還站著。
+- ⚠️ **已知問題，尚未修**：`BigNumber` 是浮點數，累積多次小額傷害會留下殘值。
+  例如 `ArmoredMonster`（`maxHp = 10`、`armor = 5`）被 100 發「每發 1 點」打完後，
+  因為固定值減傷落在 10% 下限，每發實際傷害是 `0.1`，**HP 最後會停在 `2.2e-16` 而不是 `0`**。
+- 目前 `Health.IsDead()` 只有 `currentHp <= BigNumber.Zero`，所以怪物**不會死**；
+  而 `BigNumber.ToDisplayString()` 對 `< 1000` 的值用 `"0.##"`，會把 `2.2e-16` 印成 `"0"`，
+  **讓 UI 看起來像「0 血卻沒死」**。
+- 修法見 `Docs/Decision-Log.md` 2.15 與 `Docs/Design.md` 附錄 A.9：
+  死亡判定改用相對容差（`HP ≤ maxHp × 1e-9`）並夾成剛好的 `0`，顯示層不得把非零值印成 `0`。
