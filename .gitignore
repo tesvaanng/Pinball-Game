@@ -1,0 +1,49 @@
+# ============================================================
+#  注意：不要忽略 Docs/
+#  Docs/Design.md 與 Docs/Decision-Log.md 是本專案的權威規格，
+#  必須進版控。任何 Unity 範本若含 [Dd]ocs 請刪掉那一行。
+# ============================================================
+
+# ---- Unity 自動產生（不進版控）----
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# ---- IDE / 編輯器 ----
+.vs/
+.idea/
+.vscode/
+.workbuddy/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- 建置產物 ----
+*.apk
+*.aab
+*.app
+*.unitypackage
+crashlytics-build.properties
+sysinfo.txt
+ExportedObj/
+
+# ---- 作業系統 ----
+.DS_Store
+Thumbs.db

@@ -1,0 +1,49 @@
+# 自動偵測文字檔並正規化為 LF
+* text=auto
+
+# ---- Unity 的 YAML 檔一律 LF ----
+# 這些檔案由 Unity 產生，若混用 CRLF/LF 會讓 diff 與合併整檔爆掉
+*.meta          text eol=lf
+*.unity         text eol=lf
+*.asset         text eol=lf
+*.prefab        text eol=lf
+*.mat           text eol=lf
+*.anim          text eol=lf
+*.controller    text eol=lf
+*.overrideController text eol=lf
+*.physicMaterial2D   text eol=lf
+*.physicsMaterial2D  text eol=lf
+*.inputactions  text eol=lf
+*.asmdef        text eol=lf
+*.json          text eol=lf
+*.md            text eol=lf
+
+# ---- 純文字原始碼 ----
+*.cs            text eol=lf
+*.shader        text eol=lf
+*.cginc         text eol=lf
+*.hlsl          text eol=lf
+
+# ---- 二進位檔：不要做換行轉換、不要嘗試合併 ----
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.psd       binary
+*.tga       binary
+*.exr       binary
+*.hdr       binary
+*.cubemap   binary
+*.fbx       binary
+*.obj       binary
+*.blend     binary
+*.wav       binary
+*.mp3       binary
+*.ogg       binary
+*.ttf       binary
+*.otf       binary
+*.dll       binary
+*.so        binary
+*.a         binary
+*.lib       binary
+*.bytes     binary
