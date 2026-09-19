@@ -4974,9 +4974,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   ballPrefab: {fileID: 7237198569698350619, guid: 2634565d81de2e2409bcc0b1318ec886, type: 3}
   shootPoint: {fileID: 30373883}
-  shootForce: 10
+  shootForce: 20
   ballLifeTime: 8
-  spawnOffSet: 0.5
+  spawnOffSet: 0.1
 --- !u!4 &1727879129
 Transform:
   m_ObjectHideFlags: 0
