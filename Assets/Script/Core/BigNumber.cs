@@ -157,6 +157,11 @@ namespace Pinball.Core
         /// <summary>
         /// 判斷是否小到可以視為 0。
         /// 主要是避免浮點誤差在大量扣除後留下像 1.86e-14 的殘值。
+        ///
+        /// ⚠️ **這是「絕對」門檻（值本身小於 1e-9），不是相對門檻。**
+        /// 它只在數值本身很小的時候有效。要判斷「某個 HP 相對它的上限是否已可視為 0」，
+        /// 請用相對門檻（見 <see cref="Pinball.Health.Health"/> 與 Decision-Log 2.15）——
+        /// 對 1e20 這種大數字，累積誤差可能是 1e7，這個方法抓不到。
         /// </summary>
         public bool IsNearlyZero()
         {
@@ -182,6 +187,13 @@ namespace Pinball.Core
 
             if (value < 1000)
             {
+                // 不要讓極小的非零值印成 "0"。「0」只能有一個意思——
+                // 否則「顯示 0 血卻沒死」這種 bug 無法從畫面上察覺（見 Decision-Log 2.15）。
+                if (value > 0 && value < 0.01)
+                {
+                    return ToScientificString();
+                }
+
                 return value.ToString("0.##");
             }
 
