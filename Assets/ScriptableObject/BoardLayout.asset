@@ -1,0 +1,44 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c80e6caad35ebf94ca13471e91eb6ed2, type: 3}
+  m_Name: BoardLayout
+  m_EditorClassIdentifier: 
+  playAreaCenter: {x: 0, y: -3.97}
+  playAreaSize: {x: 30, y: 30}
+  generateUniformGrid: 1
+  pegSpacing: 1.5
+  pegRadius: 0.2
+  topMargin: 3
+  bottomMargin: 1.5
+  sideMargin: 1.5
+  staggerRows: 1
+  pocketBandHeight: 1.4
+  pocketWidthRatio: 0.92
+  pocketMultipliers:
+  - mantissa: 2
+    exponent: 1
+  - mantissa: 8
+    exponent: 0
+  - mantissa: 3
+    exponent: 0
+  - mantissa: 1
+    exponent: 0
+  - mantissa: 1
+    exponent: 0
+  - mantissa: 3
+    exponent: 0
+  - mantissa: 8
+    exponent: 0
+  - mantissa: 2
+    exponent: 1
+  pegs: []
+  pockets: []
