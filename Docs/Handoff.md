@@ -173,6 +173,8 @@ v1 偏偏就是均勻網格，因為：
 | 欄位 | 指到 | 留空的後果 |
 |---|---|---|
 | `Layout` | `Assets/ScriptableObject/BoardLayout.asset` | 用記憶體預設值（可跑，但參數不可調，Console 會提醒） |
+| `Peg Prefab` | `Assets/Prefeb/Peg.prefab` | 不生成釘子，Console 會警告 |
+| `Pocket Prefab` | `Assets/Prefeb/Pocket.prefab` | 不生成袋口，Console 會警告 |
 | `Peg Parent` | 場景中的 **`All Peg`** | 全部塞在 BoardBuilder 自己底下 |
 | `Pocket Parent` | 場景中的 **`All Pocket`** | 同上 |
 | `Build On Awake` | 保持勾選 | 進 Play 不會生成 |

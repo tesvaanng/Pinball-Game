@@ -15,13 +15,14 @@ MonoBehaviour:
   playAreaCenter: {x: 0, y: -3.97}
   playAreaSize: {x: 30, y: 30}
   generateUniformGrid: 1
-  pegSpacing: 1.5
-  pegRadius: 0.2
-  topMargin: 3
-  bottomMargin: 1.5
+  pegSpacing: 3
+  pegRadius: 0.5
+  topMargin: 5
+  bottomMargin: 3
   sideMargin: 1.5
   staggerRows: 1
-  pocketBandHeight: 1.4
+  staggerOffset: 0.7
+  pocketBandHeight: 2
   pocketWidthRatio: 0.92
   pocketMultipliers:
   - mantissa: 2
@@ -29,15 +30,15 @@ MonoBehaviour:
   - mantissa: 8
     exponent: 0
   - mantissa: 3
-    exponent: 0
+    exponent: 1
   - mantissa: 1
-    exponent: 0
+    exponent: 1
   - mantissa: 1
-    exponent: 0
+    exponent: 1
   - mantissa: 3
-    exponent: 0
+    exponent: 1
   - mantissa: 8
-    exponent: 0
+    exponent: 1
   - mantissa: 2
     exponent: 1
   pegs: []

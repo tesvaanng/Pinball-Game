@@ -7,6 +7,16 @@ using HealthState = Pinball.Health.Health;
 
 namespace Pinball.Combat
 {
+    public struct CombatShotResult
+    {
+        public Monster target;
+        public BigNumber hpBefore;
+        public BigNumber hpAfter;
+        public BigNumber actualDamage;
+        public bool died;
+        public bool playerDied;
+    }
+
     public class CombatManager : Singleton<CombatManager>
     {
         public string playerId = "player";
@@ -75,68 +85,88 @@ namespace Pinball.Combat
 
             while (shotsLeft > 0)
             {
-                Monster target = GetFirstAliveMonster();
-                if (target == null)
+                CombatShotResult result = ApplySingleShot(damagePerShot);
+
+                if (result.target == null)
                 {
                     break;
                 }
 
-                currentMonster = target;
-
-                BigNumber finalDamage = target.ModifyIncomingDamage(damagePerShot);
-                HealthState monsterHealth = HealthManager.Instance.Get(target.id);
-                BigNumber hpBefore = monsterHealth.currentHp;
-
-                BigNumber actualDamage = finalDamage;
-                BigNumber overflowDamage = BigNumber.Zero;
-
-                BigNumber remainingHp = hpBefore - actualDamage;
-                bool lethal = actualDamage >= hpBefore || remainingHp.IsNearlyZero();
-
-                if (lethal)
+                if (result.playerDied)
                 {
-                    overflowDamage = actualDamage - hpBefore;
-                    actualDamage = hpBefore;
-                }
-
-                if (overflowDamage > BigNumber.Zero && damageOverflowHandler != null)
-                {
-                    damageOverflowHandler.OnOverflowDamage(overflowDamage, target);
-                }
-
-                if (actualDamage > BigNumber.Zero)
-                {
-                    HealthManager.Instance.Damage(target.id, actualDamage);
-                }
-
-                BigNumber hpAfter = monsterHealth.currentHp;
-                bool died = HealthManager.Instance.IsDead(target.id);
-
-                if (OnMonsterDamaged != null)
-                {
-                    OnMonsterDamaged(hpBefore, hpAfter, died);
-                }
-
-                BigNumber counterDamage = target.OnHitReceived(actualDamage, died);
-                if (counterDamage > BigNumber.Zero)
-                {
-                    bool playerDied = ApplyPlayerDamage(counterDamage);
-                    if (playerDied)
-                    {
-                        break;
-                    }
+                    break;
                 }
 
                 shotsLeft--;
-
-                if (died)
-                {
-                    currentMonster = GetFirstAliveMonster();
-                }
             }
 
             currentMonster = GetFirstAliveMonster();
             return IsLevelCleared();
+        }
+
+        public CombatShotResult ApplySingleShot(BigNumber damagePerShot)
+        {
+            CombatShotResult result = new CombatShotResult();
+
+            Monster target = GetFirstAliveMonster();
+            if (target == null)
+            {
+                return result;
+            }
+
+            currentMonster = target;
+
+            BigNumber finalDamage = target.ModifyIncomingDamage(damagePerShot);
+            HealthState monsterHealth = HealthManager.Instance.Get(target.id);
+            BigNumber hpBefore = monsterHealth.currentHp;
+
+            BigNumber actualDamage = finalDamage;
+            BigNumber overflowDamage = BigNumber.Zero;
+
+            BigNumber remainingHp = hpBefore - actualDamage;
+            bool lethal = actualDamage >= hpBefore || remainingHp.IsNearlyZero();
+
+            if (lethal)
+            {
+                overflowDamage = actualDamage - hpBefore;
+                actualDamage = hpBefore;
+            }
+
+            if (overflowDamage > BigNumber.Zero && damageOverflowHandler != null)
+            {
+                damageOverflowHandler.OnOverflowDamage(overflowDamage, target);
+            }
+
+            if (actualDamage > BigNumber.Zero)
+            {
+                HealthManager.Instance.Damage(target.id, actualDamage);
+            }
+
+            BigNumber hpAfter = monsterHealth.currentHp;
+            bool died = HealthManager.Instance.IsDead(target.id);
+
+            if (OnMonsterDamaged != null)
+            {
+                OnMonsterDamaged(hpBefore, hpAfter, died);
+            }
+
+            BigNumber counterDamage = target.OnHitReceived(actualDamage, died);
+            if (counterDamage > BigNumber.Zero)
+            {
+                result.playerDied = ApplyPlayerDamage(counterDamage);
+            }
+
+            if (died)
+            {
+                currentMonster = GetFirstAliveMonster();
+            }
+
+            result.target = target;
+            result.hpBefore = hpBefore;
+            result.hpAfter = hpAfter;
+            result.actualDamage = actualDamage;
+            result.died = died;
+            return result;
         }
 
         public bool MonsterAttack()

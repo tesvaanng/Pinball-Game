@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 using Pinball.Core;
 
@@ -11,7 +10,8 @@ namespace Pinball.Board
     ///   1. 在場景中開一個空物件（例如 BoardManager 底下）掛上這個元件
     ///   2. 指定 BoardLayout 資料資產
     ///   3. 把 pegParent 指到場景中的「All Peg」、pocketParent 指到「All Pocket」
-    ///   4. 進 Play，或在 Inspector 右鍵選「生成盤面」預覽
+    ///   4. 把 pegPrefab 指到 Assets/Prefeb/Peg.prefab、pocketPrefab 指到 Assets/Prefeb/Pocket.prefab
+    ///   5. 進 Play，或在 Inspector 右鍵選「生成盤面」預覽
     ///
     /// 生成的物件都帶 HideFlags.DontSave，所以**不會被寫進場景檔**。
     /// 盤面的唯一真相是 BoardLayout 資產 —— 改資料、進 Play，盤面就變了。
@@ -23,6 +23,13 @@ namespace Pinball.Board
         [Header("資料")]
         public BoardLayout layout;
 
+        [Header("模板 Prefab")]
+        [Tooltip("釘子模板。指定 Assets/Prefeb/Peg.prefab。")]
+        public Peg pegPrefab;
+
+        [Tooltip("袋口模板。指定 Assets/Prefeb/Pocket.prefab。")]
+        public Pocket pocketPrefab;
+
         [Tooltip("生成的釘子掛在這裡（場景中的 All Peg）。留空則掛在自己底下。")]
         public Transform pegParent;
 
@@ -31,17 +38,6 @@ namespace Pinball.Board
 
         [Tooltip("進入 Play 時自動生成。")]
         public bool buildOnAwake = true;
-
-        [Header("灰盒外觀")]
-        [Tooltip("執行時產生的圓形 sprite 解析度。")]
-        public int circleSpriteSize = 32;
-
-        public Color pegColor = new Color(0.85f, 0.85f, 0.90f, 1f);
-        public Color pocketLowColor = new Color(0.35f, 0.38f, 0.45f, 1f);
-        public Color pocketHighColor = new Color(0.95f, 0.75f, 0.20f, 1f);
-
-        private Sprite circleSprite;
-        private Sprite squareSprite;
 
         private void Awake()
         {
@@ -81,7 +77,11 @@ namespace Pinball.Board
 
             float pocketBandTop = area.yMin + layout.pocketBandHeight;
 
-            if (layout.generateUniformGrid)
+            if (pegPrefab == null)
+            {
+                Debug.LogWarning("BoardBuilder: 沒有指定 pegPrefab（Assets/Prefeb/Peg.prefab），跳過釘子生成。");
+            }
+            else if (layout.generateUniformGrid)
             {
                 BuildUniformGrid(area, pocketBandTop);
             }
@@ -90,7 +90,11 @@ namespace Pinball.Board
                 BuildManualPegs();
             }
 
-            if (layout.pockets != null && layout.pockets.Count > 0)
+            if (pocketPrefab == null)
+            {
+                Debug.LogWarning("BoardBuilder: 沒有指定 pocketPrefab（Assets/Prefeb/Pocket.prefab），跳過袋口生成。");
+            }
+            else if (layout.pockets != null && layout.pockets.Count > 0)
             {
                 BuildManualPockets();
             }
@@ -142,7 +146,7 @@ namespace Pinball.Board
                 }
 
                 bool staggered = layout.staggerRows && (r % 2) == 1;
-                float rowOffset = staggered ? spacing * 0.5f : 0f;
+                float rowOffset = staggered ? spacing * layout.staggerOffset : 0f;
                 int rowColumns = staggered ? Mathf.Max(1, columns - 1) : columns;
 
                 for (int c = 0; c < rowColumns; c++)
@@ -186,25 +190,18 @@ namespace Pinball.Board
 
         private void CreatePeg(Vector2 worldPos, float radius, string pegId, BigNumber score)
         {
-            GameObject go = new GameObject("Peg");
-            go.hideFlags = HideFlags.DontSave;
-            go.transform.SetParent(pegParent, true);
-            go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+            Peg instance = Instantiate(pegPrefab, new Vector3(worldPos.x, worldPos.y, 0f), Quaternion.identity, pegParent);
+            instance.name = "Peg";
+            MarkDontSave(instance.gameObject);
 
-            // 圓形 sprite 的直徑是 1 世界單位，所以 scale 直接等於直徑
-            float diameter = radius * 2f;
-            go.transform.localScale = new Vector3(diameter, diameter, 1f);
+            // prefab 的 CircleCollider2D 半徑不一定是 0.5，照實際值換算 scale
+            CircleCollider2D circle = instance.GetComponent<CircleCollider2D>();
+            float baseRadius = circle != null ? Mathf.Max(0.0001f, circle.radius) : 0.5f;
+            float scale = radius / baseRadius;
+            instance.transform.localScale = new Vector3(scale, scale, 1f);
 
-            SpriteRenderer spriteRenderer = go.AddComponent<SpriteRenderer>();
-            spriteRenderer.sprite = GetCircleSprite();
-            spriteRenderer.color = pegColor;
-
-            CircleCollider2D circle = go.AddComponent<CircleCollider2D>();
-            circle.radius = 0.5f;
-
-            Peg peg = go.AddComponent<Peg>();
-            peg.pegId = pegId;
-            peg.score = score;
+            instance.pegId = pegId;
+            instance.score = score;
         }
 
         // ────────────────────────────── 袋口 ──────────────────────────────
@@ -223,19 +220,10 @@ namespace Pinball.Board
             float pocketWidth = cellWidth * Mathf.Clamp01(layout.pocketWidthRatio);
             float y = area.yMin + layout.pocketBandHeight * 0.5f;
 
-            BigNumber highest = multipliers[0];
-            for (int i = 1; i < count; i++)
-            {
-                if (multipliers[i] > highest)
-                {
-                    highest = multipliers[i];
-                }
-            }
-
             for (int i = 0; i < count; i++)
             {
                 float x = area.xMin + cellWidth * (i + 0.5f);
-                CreatePocket(new Vector2(x, y), new Vector2(pocketWidth, height), multipliers[i], highest);
+                CreatePocket(new Vector2(x, y), new Vector2(pocketWidth, height), multipliers[i]);
             }
 
             Debug.Log(string.Format("BoardBuilder: 生成了 {0} 個袋口。", count));
@@ -243,15 +231,6 @@ namespace Pinball.Board
 
         private void BuildManualPockets()
         {
-            BigNumber highest = BigNumber.One;
-            for (int i = 0; i < layout.pockets.Count; i++)
-            {
-                if (layout.pockets[i] != null && layout.pockets[i].multiplier > highest)
-                {
-                    highest = layout.pockets[i].multiplier;
-                }
-            }
-
             for (int i = 0; i < layout.pockets.Count; i++)
             {
                 BoardLayout.PocketSpec spec = layout.pockets[i];
@@ -260,45 +239,39 @@ namespace Pinball.Board
                     continue;
                 }
 
-                CreatePocket(spec.position, spec.size, spec.multiplier, highest);
+                CreatePocket(spec.position, spec.size, spec.multiplier);
             }
         }
 
-        private void CreatePocket(Vector2 worldPos, Vector2 size, BigNumber multiplier, BigNumber highest)
+        private void CreatePocket(Vector2 worldPos, Vector2 size, BigNumber multiplier)
         {
-            GameObject go = new GameObject("Pocket_" + multiplier.ToDisplayString());
-            go.hideFlags = HideFlags.DontSave;
-            go.transform.SetParent(pocketParent, true);
-            go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
-            go.transform.localScale = new Vector3(size.x, size.y, 1f);
+            Pocket instance = Instantiate(pocketPrefab, new Vector3(worldPos.x, worldPos.y, 0f), Quaternion.identity, pocketParent);
+            instance.name = "Pocket_" + multiplier.ToDisplayString();
 
-            SpriteRenderer spriteRenderer = go.AddComponent<SpriteRenderer>();
-            spriteRenderer.sprite = GetSquareSprite();
-            spriteRenderer.color = Color.Lerp(pocketLowColor, pocketHighColor, TierRatio(multiplier, highest));
-            spriteRenderer.sortingOrder = -1;
+            // prefab 的 BoxCollider2D size 不一定是 (1,1)，照實際值換算 scale
+            BoxCollider2D box = instance.GetComponent<BoxCollider2D>();
+            Vector2 baseSize = box != null ? box.size : Vector2.one;
+            if (baseSize.x < 0.0001f) baseSize.x = 1f;
+            if (baseSize.y < 0.0001f) baseSize.y = 1f;
+            instance.transform.localScale = new Vector3(size.x / baseSize.x, size.y / baseSize.y, 1f);
 
-            BoxCollider2D box = go.AddComponent<BoxCollider2D>();
-            box.size = Vector2.one;
-            box.isTrigger = true;
-
-            Pocket pocket = go.AddComponent<Pocket>();
-            pocket.multiplier = multiplier;
-        }
-
-        /// <summary>把倍率映射到 0～1，純粹為了灰盒的顏色深淺。</summary>
-        private static float TierRatio(BigNumber value, BigNumber highest)
-        {
-            double top = Math.Log10(Math.Max(1.0, highest.ToDouble()));
-            if (top <= 0.0)
-            {
-                return 0f;
-            }
-
-            double current = Math.Log10(Math.Max(1.0, value.ToDouble()));
-            return Mathf.Clamp01((float)(current / top));
+            instance.multiplier = multiplier;
+            instance.RefreshLabel();
+            MarkDontSave(instance.gameObject);
         }
 
         // ────────────────────────────── 工具 ──────────────────────────────
+
+        private static void MarkDontSave(GameObject go)
+        {
+            go.hideFlags = HideFlags.DontSave;
+
+            Transform t = go.transform;
+            for (int i = 0; i < t.childCount; i++)
+            {
+                MarkDontSave(t.GetChild(i).gameObject);
+            }
+        }
 
         private void ClearChildren(Transform parent)
         {
@@ -319,63 +292,6 @@ namespace Pinball.Board
                     DestroyImmediate(child);
                 }
             }
-        }
-
-        private Sprite GetCircleSprite()
-        {
-            if (circleSprite != null)
-            {
-                return circleSprite;
-            }
-
-            int size = Mathf.Max(8, circleSpriteSize);
-            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            texture.filterMode = FilterMode.Bilinear;
-            texture.wrapMode = TextureWrapMode.Clamp;
-
-            float radius = size * 0.5f;
-            Color32[] pixels = new Color32[size * size];
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float dx = x + 0.5f - radius;
-                    float dy = y + 0.5f - radius;
-                    float distance = Mathf.Sqrt(dx * dx + dy * dy);
-                    float alpha = Mathf.Clamp01(radius - distance);
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
-                }
-            }
-
-            texture.SetPixels32(pixels);
-            texture.Apply();
-
-            circleSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
-            circleSprite.name = "BoardBuilderCircle";
-            return circleSprite;
-        }
-
-        private Sprite GetSquareSprite()
-        {
-            if (squareSprite != null)
-            {
-                return squareSprite;
-            }
-
-            const int size = 4;
-            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-            Color32[] pixels = new Color32[size * size];
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                pixels[i] = new Color32(255, 255, 255, 255);
-            }
-
-            texture.SetPixels32(pixels);
-            texture.Apply();
-
-            squareSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), size);
-            squareSprite.name = "BoardBuilderSquare";
-            return squareSprite;
         }
     }
 }

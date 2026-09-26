@@ -69,6 +69,8 @@ namespace Pinball.Board
         [Tooltip("奇數排水平偏移半格（真正的 Plinko 排列）。關掉會變成方格，球容易直直穿過去。")]
         public bool staggerRows = true;
 
+        public float staggerOffset = 0.5f;
+
         [Header("── 袋口 ──")]
         [Tooltip("袋口帶的高度（從盤面底部往上算）。")]
         public float pocketBandHeight = 1.4f;

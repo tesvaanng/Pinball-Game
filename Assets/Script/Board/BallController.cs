@@ -40,8 +40,9 @@ namespace Pinball.Board
             Peg peg = collision.gameObject.GetComponent<Peg>();
             if (peg != null && BoardManager.IsInitialized)
             {
-                score += peg.score;
-                BoardManager.Instance.ReportScoreChanged(this);
+                BigNumber gained = peg.score;
+                score += gained;
+                BoardManager.Instance.ReportScoreChanged(this, gained);
             }
         }
 

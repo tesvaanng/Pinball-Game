@@ -12,8 +12,9 @@ namespace Pinball.UI
         public TextMeshProUGUI monsterHpText;
         public TextMeshProUGUI playerHpText;
         public TextMeshProUGUI resultText;
-
         public TextMeshProUGUI fireChargeText;
+
+        private Color normalChargeColor = Color.white;
 
         public void ShowBallScore(BigNumber score)
         {
@@ -23,11 +24,12 @@ namespace Pinball.UI
             }
         }
 
-        public void ShowCharge(BigNumber charge)
+        public void ShowCharge(BigNumber charge, BigNumber capacity)
         {
             if (chargeText != null)
             {
-                chargeText.text = "Charge: " + charge.ToString();
+                chargeText.text = "(" + charge.ToString() + "/" + capacity.ToString() + ")";
+                chargeText.color = normalChargeColor;
             }
         }
 
@@ -69,6 +71,28 @@ namespace Pinball.UI
             {
                 fireChargeText.text = "Fire Charge: " + charge.ToString();
             }
+        }
+
+        public Vector2 GetChargeScreenPosition()
+        {
+            return GetScreenPosition(chargeText != null ? chargeText.rectTransform : null);
+        }
+
+        public Vector2 GetMonsterHpScreenPosition()
+        {
+            return GetScreenPosition(monsterHpText != null ? monsterHpText.rectTransform : null);
+        }
+
+        private Vector2 GetScreenPosition(RectTransform rect)
+        {
+            if (rect == null)
+            {
+                return new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            }
+
+            Canvas canvas = rect.GetComponentInParent<Canvas>();
+            Camera cam = (canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay) ? canvas.worldCamera : null;
+            return RectTransformUtility.WorldToScreenPoint(cam, rect.position);
         }
     }
 }

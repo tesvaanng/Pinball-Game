@@ -1,15 +1,8 @@
 using Pinball.Core;
 using UnityEngine;
+
 namespace Pinball.Scoring
 {
-    public struct BallResult
-    {
-        public BigNumber ballScore;
-        public BigNumber multiplier;
-        public BigNumber finalScore;
-        public int fireCount;
-    }
-
     public class ScoringManager : Singleton<ScoringManager>
     {
         public ChargeMeter chargeMeter;
@@ -23,24 +16,38 @@ namespace Pinball.Scoring
             }
         }
 
+        public BigNumber ChargeCapacity
+        {
+            get
+            {
+                if (chargeMeter == null) return BigNumber.Zero;
+                return chargeMeter.capacity;
+            }
+        }
+
         public void Init(BigNumber capacity)
         {
             chargeMeter = new ChargeMeter(capacity);
         }
 
-        public BallResult SettleBall(BigNumber ballScore, BigNumber multiplier)
+        public void AddCharge(BigNumber amount)
         {
             if (chargeMeter == null)
             {
                 Init(100);
             }
-            BallResult result = new BallResult();
-            result.ballScore = ballScore;
-            result.multiplier = multiplier;
-            result.finalScore = ballScore * multiplier;
-            result.fireCount = chargeMeter.Add(result.finalScore);
-            
-            return result;
+
+            chargeMeter.Add(amount);
+        }
+
+        public bool TryConsumeOneCharge()
+        {
+            if (chargeMeter == null)
+            {
+                return false;
+            }
+
+            return chargeMeter.TryConsumeOne();
         }
 
         public void ResetAll()

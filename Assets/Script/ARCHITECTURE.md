@@ -13,7 +13,7 @@
 | Combat | `CombatManager` | 怪物、玩家傷害、怪物攻擊 |
 | Board | `BoardManager` | 盤面、多顆球、釘子、袋口、球上分數、物理事件、發射器瞄準 |
 | Input | `InputManager` | 力度條輸入、滑鼠指標位置與發射事件 |
-| UI | `BattleUIManager` | 分數、充能、HP、結算顯示 |
+| UI | `BattleUIManager` / `FloatingTextManager` | 分數、充能、HP、結算顯示；飄字生成與動畫（UI 層 Canvas，自動建立） |
 | Flow | `BattleManager` / `SetupManager` | 串接各 Manager，控制初始化與一層戰鬥流程 |
 
 ## 存取規則

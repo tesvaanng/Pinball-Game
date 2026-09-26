@@ -13,11 +13,12 @@ namespace Pinball.Board
         public float ballLifeTime = 8f;
 
         [Tooltip("沿垂直於發射方向的偏移量，避免多顆球完全重疊在同一點。")]
+        public bool isShootOffsetEnabled = true;
         public float spawnOffSet = 0.5f;
 
-        public event Action<int, BigNumber> OnBallScoreChanged;
-        public event Action<int, BigNumber> OnPocketEntered;
-        public event Action<int> OnBallTimedOut;
+        public event Action<int, BigNumber, BigNumber, Vector2> OnBallScoreChanged;
+        public event Action<int, BigNumber, Vector2> OnPocketEntered;
+        public event Action<int, Vector2> OnBallTimedOut;
 
         private List<BallController> balls = new List<BallController>();
         private int nextBallId = 1;
@@ -76,7 +77,11 @@ namespace Pinball.Board
 
             Vector2 direction = GetLaunchDirection();
             Vector2 perpendicular = new Vector2(-direction.y, direction.x);
-            Vector2 offset = perpendicular * UnityEngine.Random.Range(-spawnOffSet, spawnOffSet);
+            Vector2 offset = Vector2.zero;
+            if (isShootOffsetEnabled)
+            {
+                offset = perpendicular * UnityEngine.Random.Range(-spawnOffSet, spawnOffSet);
+            }
 
             BallController ball = Instantiate(ballPrefab, shootPoint.position + (Vector3)offset, shootPoint.rotation);
             ball.ballId = nextBallId;
@@ -94,14 +99,14 @@ namespace Pinball.Board
             return ball;
         }
 
-        public void ReportScoreChanged(BallController ball)
+        public void ReportScoreChanged(BallController ball, BigNumber delta)
         {
             if (ball == null || OnBallScoreChanged == null)
             {
                 return;
             }
 
-            OnBallScoreChanged(ball.ballId, ball.score);
+            OnBallScoreChanged(ball.ballId, ball.score, delta, ball.transform.position);
         }
 
         public void ReportPocket(BallController ball, BigNumber multiplier)
@@ -111,7 +116,7 @@ namespace Pinball.Board
                 return;
             }
 
-            OnPocketEntered(ball.ballId, multiplier);
+            OnPocketEntered(ball.ballId, multiplier, ball.transform.position);
         }
 
         public void ReportTimeout(BallController ball)
@@ -121,7 +126,7 @@ namespace Pinball.Board
                 return;
             }
 
-            OnBallTimedOut(ball.ballId);
+            OnBallTimedOut(ball.ballId, ball.transform.position);
         }
 
         public BigNumber GetBallScore(int ballId)
