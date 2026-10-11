@@ -33,28 +33,41 @@ namespace Pinball.UI
             return go.AddComponent<FloatingTextManager>();
         }
 
-        public FloatingText SpawnFadeWorld(Vector3 worldPos, string text, Color color, float duration, float riseOffset = 30f, float fontSize = 0f)
+        public FloatingText SpawnFadeWorld(Vector3 worldPos, string text, Color color, float duration, float riseOffset = 30f, float fontSize = 0f, float punchScale = 0f)
         {
-            return SpawnFadeScreen(WorldToScreen(worldPos), text, color, duration, riseOffset, fontSize);
+            return SpawnFadeScreen(WorldToScreen(worldPos), text, color, duration, riseOffset, fontSize, punchScale);
         }
 
-        public FloatingText SpawnFadeScreen(Vector2 screenPos, string text, Color color, float duration, float riseOffset = 30f, float fontSize = 0f)
+        public FloatingText SpawnFadeScreen(Vector2 screenPos, string text, Color color, float duration, float riseOffset = 30f, float fontSize = 0f, float punchScale = 0f)
         {
             FloatingText ft = GetOrCreate();
-            ft.PlayFade(screenPos, text, color, duration, riseOffset, fontSize <= 0f ? defaultFontSize : fontSize);
+            ft.PlayFade(screenPos, text, color, duration, riseOffset, fontSize <= 0f ? defaultFontSize : fontSize, punchScale);
             active.Add(ft);
             return ft;
         }
 
-        public FloatingText SpawnHoldThenFlyWorld(Vector3 worldPos, Vector2 targetScreenPos, string text, Color color, float holdDuration, float flyDuration, float fontSize = 0f)
+        public FloatingText SpawnTimedWorld(Vector3 worldPos, string text, Color color, float duration, float fontSize = 0f, float punchScale = 0f)
         {
-            return SpawnHoldThenFlyScreen(WorldToScreen(worldPos), targetScreenPos, text, color, holdDuration, flyDuration, fontSize);
+            return SpawnTimedScreen(WorldToScreen(worldPos), text, color, duration, fontSize, punchScale);
         }
 
-        public FloatingText SpawnHoldThenFlyScreen(Vector2 screenPos, Vector2 targetScreenPos, string text, Color color, float holdDuration, float flyDuration, float fontSize = 0f)
+        public FloatingText SpawnTimedScreen(Vector2 screenPos, string text, Color color, float duration, float fontSize = 0f, float punchScale = 0f)
         {
             FloatingText ft = GetOrCreate();
-            ft.PlayHoldThenFly(screenPos, targetScreenPos, text, color, holdDuration, flyDuration, fontSize <= 0f ? defaultFontSize : fontSize);
+            ft.PlayTimed(screenPos, text, color, duration, fontSize <= 0f ? defaultFontSize : fontSize, punchScale);
+            active.Add(ft);
+            return ft;
+        }
+
+        public FloatingText SpawnHoldThenFlyWorld(Vector3 worldPos, Vector2 targetScreenPos, string text, Color color, float holdDuration, float flyDuration, float fontSize = 0f, float punchScale = 0f)
+        {
+            return SpawnHoldThenFlyScreen(WorldToScreen(worldPos), targetScreenPos, text, color, holdDuration, flyDuration, fontSize, punchScale);
+        }
+
+        public FloatingText SpawnHoldThenFlyScreen(Vector2 screenPos, Vector2 targetScreenPos, string text, Color color, float holdDuration, float flyDuration, float fontSize = 0f, float punchScale = 0f)
+        {
+            FloatingText ft = GetOrCreate();
+            ft.PlayHoldThenFly(screenPos, targetScreenPos, text, color, holdDuration, flyDuration, fontSize <= 0f ? defaultFontSize : fontSize, punchScale);
             active.Add(ft);
             return ft;
         }

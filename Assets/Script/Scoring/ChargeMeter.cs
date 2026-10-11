@@ -22,15 +22,12 @@ namespace Pinball.Scoring
             charge += amount;
         }
 
-        public bool TryConsumeOne()
+        /// <summary>把累積的能量整條領出來並歸零。</summary>
+        public BigNumber ConsumeAll()
         {
-            if (capacity <= BigNumber.Zero || charge < capacity)
-            {
-                return false;
-            }
-
-            charge -= capacity;
-            return true;
+            BigNumber amount = charge;
+            charge = BigNumber.Zero;
+            return amount;
         }
 
         public void Clear()

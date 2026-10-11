@@ -28,7 +28,7 @@ MonoBehaviour:
   - mantissa: 2
     exponent: 1
   - mantissa: 8
-    exponent: 0
+    exponent: 1
   - mantissa: 3
     exponent: 1
   - mantissa: 1

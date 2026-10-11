@@ -74,34 +74,10 @@ namespace Pinball.Combat
             currentMonster = GetFirstAliveMonster();
         }
 
-        public bool ApplyFire(int shotCount, BigNumber damagePerShot)
+        /// <summary>整條蓄力一次打出去：一次釋放 = 一擊。</summary>
+        public CombatShotResult ApplyRelease(BigNumber totalDamage)
         {
-            if (shotCount <= 0)
-            {
-                return IsLevelCleared();
-            }
-
-            int shotsLeft = shotCount;
-
-            while (shotsLeft > 0)
-            {
-                CombatShotResult result = ApplySingleShot(damagePerShot);
-
-                if (result.target == null)
-                {
-                    break;
-                }
-
-                if (result.playerDied)
-                {
-                    break;
-                }
-
-                shotsLeft--;
-            }
-
-            currentMonster = GetFirstAliveMonster();
-            return IsLevelCleared();
+            return ApplySingleShot(totalDamage);
         }
 
         public CombatShotResult ApplySingleShot(BigNumber damagePerShot)

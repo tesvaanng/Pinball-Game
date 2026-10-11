@@ -40,14 +40,14 @@ namespace Pinball.Scoring
             chargeMeter.Add(amount);
         }
 
-        public bool TryConsumeOneCharge()
+        public BigNumber ConsumeAllCharge()
         {
             if (chargeMeter == null)
             {
-                return false;
+                return BigNumber.Zero;
             }
 
-            return chargeMeter.TryConsumeOne();
+            return chargeMeter.ConsumeAll();
         }
 
         public void ResetAll()
