@@ -17,7 +17,7 @@ MonoBehaviour:
     isBoss: 0
     monsters:
     - monster: {fileID: 11400000, guid: 40238bd0b63f58c4a84eb4faa251f2e8, type: 2}
-      count: 1
+      count: 10
   - levelName: hard
     isBoss: 0
     monsters:

@@ -136,4 +136,4 @@ MonoBehaviour:
   pegId: peg_normal
   score:
     mantissa: 1
-    exponent: 0
+    exponent: 10

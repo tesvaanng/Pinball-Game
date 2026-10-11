@@ -39,6 +39,7 @@ namespace Pinball.Board
         [Tooltip("進入 Play 時自動生成。")]
         public bool buildOnAwake = true;
 
+
         private void Awake()
         {
             if (buildOnAwake)
@@ -157,7 +158,7 @@ namespace Pinball.Board
                         continue;
                     }
 
-                    CreatePeg(new Vector2(x, y), radius, "peg_normal", 1);
+                    CreatePeg(new Vector2(x, y), radius, "peg_normal", layout.pegScore);
                     count++;
                 }
             }

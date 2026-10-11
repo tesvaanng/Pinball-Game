@@ -32,6 +32,9 @@ namespace Pinball.UI
         [Tooltip("倍率文字格式，{0} 會被替換成倍率。")]
         public string chargeTierFormat = "×{0}";
 
+        [Tooltip("基數（還沒乘倍率的傷害）顯示文字。位置隨你放，在場景建立 TMP 物件後拖進來；釋放時基數會從這裡飛向倍率文字合併。")]
+        public TextMeshProUGUI chargeBaseText;
+
         public TextMeshProUGUI monsterNameText;
         public TextMeshProUGUI monsterHpText;
         public TextMeshProUGUI playerHpText;
@@ -102,26 +105,26 @@ namespace Pinball.UI
         }
 
         /// <summary>
-        /// 分層能量條：紅色底層填滿 = 點火；之後每一層都在同一位置用不同顏色「塗過去」，
-        /// 塗滿一層就是升一階倍率。層數超過圖層數量時顏色循環，所以條子永遠在動、不會卡在滿值。
+        /// 分層能量條。barLayers 是「這次要推進幾層」（由 BattleManager 依本次滾動的量算出，
+        /// 所以不論總能量多大，每一次能量進來都會有看得見的推進）。
+        /// 紅色底層填滿 = 點火，之後每一層在同一位置用不同顏色塗過去，超過圖層數量就循環。
         /// </summary>
-        public void ShowEnergy(BigNumber displayed, BigNumber capacity, int tier, float tierMultiplier, BigNumber previewDamage)
+        public void ShowEnergy(BigNumber displayed, BigNumber capacity, int tier, float tierMultiplier, BigNumber baseDamage, double barLayers)
         {
-            double pipes = GetPipes(displayed, capacity);
             int layerCount = overchargeLayers.Count;
 
             if (chargeFillImage != null)
             {
-                chargeFillImage.fillAmount = Clamp01(pipes);
+                chargeFillImage.fillAmount = Clamp01(barLayers);
             }
 
             if (layerCount > 0)
             {
-                double local = pipes;
+                double local = barLayers;
 
-                if (pipes > 1.0)
+                if (barLayers > 1.0)
                 {
-                    local = 1.0 + ((pipes - 1.0) % layerCount);
+                    local = 1.0 + ((barLayers - 1.0) % layerCount);
                 }
 
                 for (int i = 0; i < layerCount; i++)
@@ -134,16 +137,15 @@ namespace Pinball.UI
 
             if (chargeText != null)
             {
-                if (tier <= 0)
+                // 只顯示充能量；超出上限時維持在 (容量/容量)。
+                BigNumber shown = displayed;
+                if (capacity > BigNumber.Zero && shown > capacity)
                 {
-                    chargeText.text = "(" + displayed.ToString() + "/" + capacity.ToString() + ")";
-                    chargeText.color = normalChargeColor;
+                    shown = capacity;
                 }
-                else
-                {
-                    chargeText.text = previewDamage.ToString();
-                    chargeText.color = GetTierColor(tier, layerCount);
-                }
+
+                chargeText.text = "(" + shown.ToString() + "/" + capacity.ToString() + ")";
+                chargeText.color = normalChargeColor;
             }
 
             if (chargeTierText != null)
@@ -158,6 +160,78 @@ namespace Pinball.UI
                     chargeTierText.color = GetTierColor(tier, layerCount);
                 }
             }
+
+            if (chargeBaseText != null)
+            {
+                chargeBaseText.text = displayed <= BigNumber.Zero ? string.Empty : baseDamage.ToString();
+            }
+        }
+
+        /// <summary>
+        /// 釋放瞬間用：能量條填充歸零、清掉基數文字，但**保留倍率文字**——
+        /// 倍率要等基數飛過來合併之後才消失。
+        /// </summary>
+        public void ResetChargeForRelease()
+        {
+            if (chargeFillImage != null)
+            {
+                chargeFillImage.fillAmount = 0f;
+            }
+
+            for (int i = 0; i < overchargeLayers.Count; i++)
+            {
+                if (overchargeLayers[i] != null)
+                {
+                    overchargeLayers[i].fillAmount = 0f;
+                }
+            }
+
+            if (chargeBaseText != null)
+            {
+                chargeBaseText.text = string.Empty;
+            }
+        }
+
+        /// <summary>基數合併完成：倍率文字此時才消失。</summary>
+        public void ClearChargeTierText()
+        {
+            if (chargeTierText != null)
+            {
+                chargeTierText.text = string.Empty;
+            }
+        }
+
+        public void ClearAllChargeTexts()
+        {
+            if (chargeBaseText != null)
+            {
+                chargeBaseText.text = string.Empty;
+            }
+
+            if (chargeTierText != null)
+            {
+                chargeTierText.text = string.Empty;
+            }
+        }
+
+        public Vector2 GetChargeBaseScreenPosition()
+        {
+            if (chargeBaseText == null)
+            {
+                return GetChargeScreenPosition();
+            }
+
+            return GetScreenPosition(chargeBaseText.rectTransform);
+        }
+
+        public Vector2 GetChargeTierScreenPosition()
+        {
+            if (chargeTierText == null)
+            {
+                return GetChargeScreenPosition();
+            }
+
+            return GetScreenPosition(chargeTierText.rectTransform);
         }
 
         public void ShowBallsLeft(int ballsLeft)
@@ -218,28 +292,17 @@ namespace Pinball.UI
             return GetScreenPosition(monsterHpText != null ? monsterHpText.rectTransform : null);
         }
 
-        /// <summary>這段能量有幾「條」（charge / capacity）。</summary>
-        private static double GetPipes(BigNumber charge, BigNumber capacity)
-        {
-            if (capacity <= BigNumber.Zero || charge <= BigNumber.Zero)
-            {
-                return 0.0;
-            }
-
-            double ratio = (charge / capacity).ToDouble();
-            if (double.IsNaN(ratio) || ratio < 0.0)
-            {
-                return 0.0;
-            }
-
-            return ratio;
-        }
-
         private static float Clamp01(double value)
         {
             if (value <= 0.0) return 0f;
             if (value >= 1.0) return 1f;
             return (float)value;
+        }
+
+        /// <summary>釋放結果文字的顏色＝目前正在塗抹的那一層，方便跟條子對照。</summary>
+        public Color GetTierDisplayColor(int tier)
+        {
+            return GetTierColor(tier, overchargeLayers.Count);
         }
 
         /// <summary>倍率文字的顏色＝目前正在塗抹的那一層，方便跟條子對照。</summary>

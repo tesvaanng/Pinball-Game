@@ -21,7 +21,10 @@ MonoBehaviour:
   bottomMargin: 3
   sideMargin: 1.5
   staggerRows: 1
-  staggerOffset: 0.7
+  staggerOffset: 0.5
+  pegScore:
+    mantissa: 1
+    exponent: 1
   pocketBandHeight: 2
   pocketWidthRatio: 0.92
   pocketMultipliers:

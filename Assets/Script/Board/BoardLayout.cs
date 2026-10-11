@@ -70,6 +70,8 @@ namespace Pinball.Board
         public bool staggerRows = true;
 
         public float staggerOffset = 0.5f;
+        
+        public BigNumber pegScore;
 
         [Header("── 袋口 ──")]
         [Tooltip("袋口帶的高度（從盤面底部往上算）。")]
@@ -86,5 +88,7 @@ namespace Pinball.Board
 
         [Header("── 手動指定的袋口（留空則用上面的倍率自動排）──")]
         public List<PocketSpec> pockets = new List<PocketSpec>();
+
+        
     }
 }

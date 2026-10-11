@@ -38,11 +38,19 @@ namespace Pinball.Flow
 
         [Header("充能條滾動（2.7.1 / 2.7.3）")]
         [Tooltip("每條充能的基準時長 k（秒）。")]
-        public float chargeCountDurationPerPipe = 0.8f;
+        public float chargeCountDurationPerPipe = 0.45f;
         [Tooltip("時長成長次方。0.5 = √n → 分數越大滾得越快（爽感根源）；1 = 舊版常數速度。")]
         public float chargeRollExponent = 0.5f;
+        [Tooltip("峰值膝點（條）。條數超過這裡之後時長開始縮短，數字越大滾得越快，避免大數字全部卡在上限等很久。")]
+        public float chargeRollDecayKnee = 20f;
+        [Tooltip("膝點之後的衰減次方。越大越快收斂到「大數字漸近時長」。0.4 是平滑收斂。")]
+        public float chargeRollDecayExponent = 0.4f;
+        [Tooltip("小額的硬地板（秒）。只擋太短的滾動，不影響大數字。")]
+        public float minChargeRollDuration = 0.25f;
+        [Tooltip("大數字的「漸近時長」（秒）。數字越大時長平滑趨近這個值，不會被夾成同一個秒數，也不會無限變短。")]
+        public float chargeRollFloorDuration = 1.2f;
         [Tooltip("單次滾動時長上限（秒），避免一顆超大的球播太久。")]
-        public float maxChargeRollDuration = 8f;
+        public float maxChargeRollDuration = 3f;
 
         [Header("蓄力 / 釋放（2.8 新能量系統）")]
         [Tooltip("最後一次下袋之後，多久沒有新球下袋就釋放攻擊（秒）。滾動播放期間不倒數。")]
@@ -51,19 +59,39 @@ namespace Pinball.Flow
         public float manualReleaseCooldown = 0.5f;
         [Tooltip("手動提早釋放的按鍵。")]
         public Key manualReleaseKey = Key.Space;
-        [Tooltip("完成的層數 → 傷害倍率。第 1 層（紅條填滿）為 ×1；超過表長度就以最後一個為上限。")]
-        public float[] tierMultipliers = new float[] { 1f, 1.5f, 2.5f, 4f, 8f };
-        public float releaseTextDuration = 1.2f;
+        [Tooltip("完成的位數 → 傷害倍率。每 ×10 能量升一階；超過表長度就以最後一個為上限，之後由肉鴿遺物擴充。")]
+        public float[] tierMultipliers = new float[] { 1f, 1.5f, 2.5f, 4f, 8f, 16f, 32f, 64f };
+
+        [Header("能量條視覺刻度")]
+        [Tooltip("單次滾動最少讓條子推進幾層。確保再小的能量進來也看得見。")]
+        public float barRollMinLayers = 0.35f;
+        [Tooltip("單次滾動最多讓條子推進幾層。超過就固定推進這麼多層，避免大數字時條子狂閃。")]
+        public float barRollMaxLayers = 10f;
+
+        [Header("釋放：基數 UI 飛到倍率 UI 合併（參照落袋）")]
+        [Tooltip("基數在自己的 UI 上停頓多久才起飛（秒）。")]
+        public float releaseBaseHold = 0.1f;
+        [Tooltip("基數從基數 UI 飛到倍率 UI 的時長（秒）。")]
+        public float releaseBaseFlyDuration = 0.25f;
+        [Tooltip("結果在倍率 UI 上炸開並停留的時長（秒）。")]
+        public float releaseCollideHold = 0.25f;
+        [Tooltip("結果飛向怪物血條的時長；飛到時才扣血並抖動鏡頭。")]
+        public float releaseDamageFlyDuration = 0.5f;
+        public Color releaseBaseColor = new Color(0.95f, 0.95f, 0.95f, 1f);
+        public float releaseBaseFontScale = 0.9f;
         public float releaseFontSizeBase = 1.8f;
         public float releaseFontSizePerTier = 0.4f;
         public float releasePunchBase = 0.5f;
         public float releasePunchPerTier = 0.18f;
-        public float monsterDamageTextDuration = 0.8f;
         public Key cancelAnimKey = Key.F;
 
         [Header("飄字分級（2.7.5 / 2.7.9）")]
         public Color pegTextColor = new Color(0.95f, 0.95f, 0.95f, 1f);
         public Color monsterDamageTextColor = new Color(1f, 0.35f, 0.35f, 1f);
+        [Tooltip("紅色扣血飄字的停留秒數。")]
+        public float monsterDamageTextDuration = 0.8f;
+        [Tooltip("紅色扣血飄字的彈跳幅度。")]
+        public float monsterDamageTextPunch = 0.25f;
         public float floatingTextFontSize = 36f;
         public float pegTextPunch = 0.15f;
 
@@ -98,15 +126,40 @@ namespace Pinball.Flow
             public float resultPunch;
         }
 
+        private enum ReleasePhase
+        {
+            Base,
+            Fly
+        }
+
+        /// <summary>釋放：基數 UI 飛到倍率 UI 合併 → 結果飛向怪物血條（飛到時才扣血並抖動）。</summary>
+        private class PendingRelease
+        {
+            public ReleasePhase phase;
+            public float timer;
+            public string baseText;
+            public string resultText;
+            public Color resultColor;
+            public float resultFontSize;
+            public float resultPunch;
+            public BigNumber damage;
+            public int tier;
+            public Vector2 mergePos;
+        }
+
         private readonly List<PendingPocketText> pendingPocketTexts = new List<PendingPocketText>();
+        private readonly List<PendingRelease> pendingReleases = new List<PendingRelease>();
         private readonly Queue<BigNumber> energyAddQueue = new Queue<BigNumber>();
 
         private bool rollActive;
         private BigNumber rollCurrent;
-        private BigNumber rollBase;
-        private BigNumber rollAmount;
+        private BigNumber rollFrom;
+        private BigNumber rollTarget;
         private float rollTimer;
         private float rollDuration;
+        private double rollLayers;
+        private double rollLayersAtStart;
+        private double rollLayerSpan;
         private bool settleBusy;
         private bool chargeEnabled = true;
         private bool charging;
@@ -145,6 +198,7 @@ namespace Pinball.Flow
             if (!skipped)
             {
                 TickPendingPocketTexts();
+                TickPendingReleases();
                 TickEnergyRoll();
                 TickCharge();
             }
@@ -428,27 +482,36 @@ namespace Pinball.Flow
             }
         }
 
+        /// <summary>
+        /// 充能條的滾動。
+        /// - 只要佇列裡還有新球下袋的量，就一起吸進來，從「現在顯示的值」重新起算這一段，
+        ///   所以前後接著來的分數會連成一段連續的動畫，新分數進來時速度也會跟著重新算。
+        /// - 顯示值用對數內插（位數等速成長），數字看起來才是穩定地爬，
+        ///   不會出現「前面超快衝上去、後面慢慢磨」的怪異感。
+        /// </summary>
         private void TickEnergyRoll()
         {
-            if (!rollActive)
+            if (energyAddQueue.Count > 0)
             {
-                if (energyAddQueue.Count == 0)
-                {
-                    return;
-                }
+                AbsorbQueuedEnergy();
 
-                BigNumber amount = energyAddQueue.Dequeue();
-                ScoringManager.Instance.AddCharge(amount);
-
-                rollBase = ScoringManager.Instance.CurrentCharge - amount;
-                rollAmount = amount;
-                rollCurrent = rollBase;
-                rollDuration = ChargeRollDuration(amount);
-                rollTimer = rollDuration;
                 rollActive = true;
+                rollFrom = rollCurrent;
+                rollTarget = ScoringManager.Instance.CurrentCharge;
+                rollDuration = ChargeRollDuration(rollTarget - rollFrom);
+                rollTimer = rollDuration;
                 chargeIdleTimer = chargeIdleSeconds;
 
+                // 條子的刻度跟著「本次滾動的量」走，不是跟著總量：
+                // 總量當刻度的話，量越大每一條越貴，新能量就推不動條子。
+                rollLayersAtStart = rollLayers;
+                rollLayerSpan = ComputeRollLayerSpan(rollTarget - rollFrom);
+
                 UpdateChargeVisual(rollCurrent);
+            }
+
+            if (!rollActive)
+            {
                 return;
             }
 
@@ -460,11 +523,53 @@ namespace Pinball.Flow
 
             rollTimer -= Time.deltaTime;
             float progress = Mathf.Clamp01(1f - rollTimer / rollDuration);
-            ApplyRollValue(rollBase + rollAmount * progress);
+            rollLayers = rollLayersAtStart + rollLayerSpan * progress;
+            ApplyRollValue(InterpolateCharge(rollFrom, rollTarget, progress));
 
             if (rollTimer <= 0f)
             {
                 FinishRoll();
+            }
+        }
+
+        /// <summary>
+        /// 這一次滾動要讓條子推進幾層：以「本次增量」為尺度，最少 0.35 層、最多 10 層。
+        /// 所以不論總能量多大，每一次能量進來都會有看得見的推進。
+        /// </summary>
+        private double ComputeRollLayerSpan(BigNumber delta)
+        {
+            BigNumber capacity = ScoringManager.Instance.ChargeCapacity;
+            if (capacity <= BigNumber.Zero || delta <= BigNumber.Zero)
+            {
+                return 0.0;
+            }
+
+            double pipes = (delta / capacity).ToDouble();
+            if (double.IsNaN(pipes) || pipes <= 0.0)
+            {
+                return 0.0;
+            }
+
+            if (double.IsInfinity(pipes))
+            {
+                return Mathf.Max(0.01f, barRollMaxLayers);
+            }
+
+            return System.Math.Min(System.Math.Max(pipes, Mathf.Max(0.01f, barRollMinLayers)), Mathf.Max(0.01f, barRollMaxLayers));
+        }
+
+        private void AbsorbQueuedEnergy()
+        {
+            BigNumber total = BigNumber.Zero;
+
+            while (energyAddQueue.Count > 0)
+            {
+                total += energyAddQueue.Dequeue();
+            }
+
+            if (total > BigNumber.Zero)
+            {
+                ScoringManager.Instance.AddCharge(total);
             }
         }
 
@@ -476,8 +581,42 @@ namespace Pinball.Flow
 
         private void FinishRoll()
         {
-            ApplyRollValue(rollBase + rollAmount);
+            ApplyRollValue(rollTarget);
             rollActive = false;
+        }
+
+        /// <summary>對數內插：讓「位數」等速成長。from 是 0 時退回線性。</summary>
+        private static BigNumber InterpolateCharge(BigNumber from, BigNumber to, float t)
+        {
+            if (t <= 0f) return from;
+            if (t >= 1f) return to;
+            if (from <= BigNumber.Zero) return to * t;
+            if (to <= from) return to;
+
+            double logFrom = Log10Big(from);
+            double logTo = Log10Big(to);
+            if (logTo <= logFrom) return to;
+
+            return FromLog10(logFrom + (logTo - logFrom) * t);
+        }
+
+        private static double Log10Big(BigNumber value)
+        {
+            if (value.mantissa <= 0.0) return 0.0;
+            return System.Math.Log10(value.mantissa) + value.exponent;
+        }
+
+        private static BigNumber FromLog10(double log)
+        {
+            if (double.IsNaN(log) || double.IsInfinity(log)) return BigNumber.Zero;
+
+            double maxLog = int.MaxValue - 2;
+            if (log > maxLog) log = maxLog;
+            if (log < -300.0) return BigNumber.Zero;
+
+            double floor = System.Math.Floor(log);
+            double mantissa = System.Math.Pow(10.0, log - floor);
+            return new BigNumber(mantissa, (int)floor);
         }
 
         /// <summary>
@@ -547,16 +686,42 @@ namespace Pinball.Flow
                 return;
             }
 
-            // 分層 Image 由 UI 端自動生成；倍率表加長時這裡會跟著長出新的層。
+            // 分層 Image 由 UI 端自動生成。條子只顯示尾數（最多 10 條），所以下限取 10。
             int tierCount = (tierMultipliers != null && tierMultipliers.Length > 0) ? tierMultipliers.Length : 1;
-            BattleUIManager.Instance.SetOverchargeLayerCount(tierCount);
+            BattleUIManager.Instance.SetOverchargeLayerCount(Mathf.Max(10, tierCount));
 
             int tier = GetTier(displayed);
             float multiplier = GetTierMultiplier(tier);
-            BattleUIManager.Instance.ShowEnergy(displayed, ScoringManager.Instance.ChargeCapacity, tier, multiplier, GetReleaseDamage(displayed, tier, multiplier));
+            BattleUIManager.Instance.ShowEnergy(displayed, ScoringManager.Instance.ChargeCapacity, tier, multiplier, GetBaseDamage(displayed), rollLayers);
         }
 
-        /// <summary>完成的層數（1 起算）。0 代表還沒點火。</summary>
+        /// <summary>基數：能量換算成傷害，但還沒乘倍率。</summary>
+        private BigNumber GetBaseDamage(BigNumber energy)
+        {
+            if (energy <= BigNumber.Zero)
+            {
+                return BigNumber.Zero;
+            }
+
+            BigNumber capacity = ScoringManager.Instance.ChargeCapacity;
+            if (capacity <= BigNumber.Zero)
+            {
+                return BigNumber.Zero;
+            }
+
+            GameConfigSO config = DataManager.Instance.gameConfig;
+            if (config == null)
+            {
+                return BigNumber.Zero;
+            }
+
+            return energy * (config.damagePerShot / capacity);
+        }
+
+        /// <summary>
+        /// 倍率階數 = 能量的「位數」（每 ×10 能量升一階），1 起算。0 代表還沒點火。
+        /// 條子只顯示尾數（1~10 層），位數單獨用階數表示，所以大數字也能一眼讀懂。
+        /// </summary>
         private int GetTier(BigNumber energy)
         {
             BigNumber capacity = ScoringManager.Instance.ChargeCapacity;
@@ -566,8 +731,23 @@ namespace Pinball.Flow
             }
 
             int maxTier = (tierMultipliers != null && tierMultipliers.Length > 0) ? tierMultipliers.Length : 1;
-            int tier = (energy / capacity).ToIntClamped(maxTier);
-            return tier < 1 ? 1 : tier;
+            double bars = (energy / capacity).ToDouble();
+
+            if (double.IsNaN(bars) || bars < 1.0)
+            {
+                return 1;
+            }
+
+            if (double.IsInfinity(bars))
+            {
+                return maxTier;
+            }
+
+            int decade = (int)System.Math.Floor(System.Math.Log10(bars));
+            if (decade < 0) decade = 0;
+
+            int tier = decade + 1;
+            return Mathf.Clamp(tier, 1, maxTier);
         }
 
         private float GetTierMultiplier(int tier)
@@ -627,26 +807,118 @@ namespace Pinball.Flow
 
             ScoringManager.Instance.ConsumeAllCharge();
             rollActive = false;
-            rollBase = BigNumber.Zero;
-            rollAmount = BigNumber.Zero;
+            rollFrom = BigNumber.Zero;
+            rollTarget = BigNumber.Zero;
             rollCurrent = BigNumber.Zero;
-            PushChargeUI(BigNumber.Zero);
+            rollLayers = 0.0;
+            rollLayersAtStart = 0.0;
+            rollLayerSpan = 0.0;
+
+            // 能量條與基數當下就清掉，但倍率文字要留到基數飛來合併時才消失。
+            if (BattleUIManager.IsInitialized)
+            {
+                BattleUIManager.Instance.ResetChargeForRelease();
+            }
 
             if (!battleStarted || battleOver || !chargeEnabled) return;
             if (damage <= BigNumber.Zero) return;
 
-            CombatShotResult shot = CombatManager.Instance.ApplyRelease(damage);
+            StartReleaseRitual(energy, tier, multiplier, damage);
+        }
 
-            if (shot.target != null && FloatingTextManager.IsInitialized)
+        /// <summary>釋放演出：基數 UI 飛到倍率 UI 合併，結果再飛向怪物血條；扣血與鏡頭抖動都在飛到時才發生。</summary>
+        private void StartReleaseRitual(BigNumber energy, int tier, float multiplier, BigNumber damage)
+        {
+            Vector2 basePos = GetChargeBaseScreenPosition();
+            Vector2 mergePos = GetChargeTierScreenPosition();
+
+            PendingRelease pending = new PendingRelease
             {
-                Vector2 screen = GetMonsterHpScreenPosition() + Vector2.up * 40f;
-                float size = floatingTextFontSize * (releaseFontSizeBase + releaseFontSizePerTier * (tier - 1));
-                float punch = releasePunchBase + releasePunchPerTier * (tier - 1);
-                FloatingTextManager.Instance.SpawnFadeScreen(screen, "-" + shot.actualDamage.ToDisplayString(), monsterDamageTextColor, releaseTextDuration, 30f, size, punch);
+                phase = ReleasePhase.Base,
+                timer = releaseBaseHold + releaseBaseFlyDuration,
+                baseText = GetBaseDamage(energy).ToDisplayString(),
+                resultText = "-" + damage.ToDisplayString(),
+                resultColor = GetTierDisplayColor(tier),
+                resultFontSize = floatingTextFontSize * (releaseFontSizeBase + releaseFontSizePerTier * (tier - 1)),
+                resultPunch = releasePunchBase + releasePunchPerTier * (tier - 1),
+                damage = damage,
+                tier = tier,
+                mergePos = mergePos
+            };
+
+            if (FloatingTextManager.IsInitialized)
+            {
+                FloatingTextManager.Instance.SpawnHoldThenFlyScreen(basePos, mergePos, pending.baseText, releaseBaseColor, releaseBaseHold, releaseBaseFlyDuration, floatingTextFontSize * releaseBaseFontScale, 0.2f);
+            }
+
+            pendingReleases.Add(pending);
+        }
+
+        private void TickPendingReleases()
+        {
+            int index = 0;
+            while (index < pendingReleases.Count)
+            {
+                PendingRelease pending = pendingReleases[index];
+                pending.timer -= Time.deltaTime;
+
+                if (pending.timer > 0f)
+                {
+                    index++;
+                    continue;
+                }
+
+                switch (pending.phase)
+                {
+                    case ReleasePhase.Base:
+                        // 基數已抵達並合併：倍率文字此刻才消失。
+                        // 若期間已開始新的一輪蓄力，就不要清掉它的倍率。
+                        if (BattleUIManager.IsInitialized && ScoringManager.Instance.CurrentCharge <= BigNumber.Zero)
+                        {
+                            BattleUIManager.Instance.ClearChargeTierText();
+                        }
+
+                        // 結果在合併點炸開，再飛向怪物血條。
+                        if (FloatingTextManager.IsInitialized)
+                        {
+                            FloatingTextManager.Instance.SpawnHoldThenFlyScreen(pending.mergePos, GetMonsterHpScreenPosition(), pending.resultText, pending.resultColor, releaseCollideHold, releaseDamageFlyDuration, pending.resultFontSize, pending.resultPunch);
+                        }
+
+                        pending.phase = ReleasePhase.Fly;
+                        pending.timer = releaseCollideHold + releaseDamageFlyDuration;
+                        index++;
+                        break;
+
+                    default:
+                        // 先移除再結算：結算可能觸發 EndBattle，屆時整份清單會被清空。
+                        pendingReleases.RemoveAt(index);
+                        ApplyReleaseDamage(pending);
+                        break;
+                }
+            }
+        }
+
+        private void ApplyReleaseDamage(PendingRelease pending)
+        {
+            if (pending == null || pending.damage <= BigNumber.Zero) return;
+            if (!battleStarted || battleOver || !chargeEnabled) return;
+
+            ShakeCamera(pending.tier);
+
+            CombatShotResult shot = CombatManager.Instance.ApplyRelease(pending.damage);
+
+            if (shot.target != null)
+            {
+                // 傷害真的落到怪物血條上時，彈出紅色扣血飄字。
+                if (FloatingTextManager.IsInitialized && shot.actualDamage > BigNumber.Zero)
+                {
+                    Vector2 screen = GetMonsterHpScreenPosition() + Vector2.up * 40f;
+                    FloatingTextManager.Instance.SpawnFadeScreen(screen, "-" + shot.actualDamage.ToDisplayString(), monsterDamageTextColor, monsterDamageTextDuration, 30f, pending.resultFontSize, monsterDamageTextPunch);
+                }
+
                 RefreshMonsterUI();
             }
 
-            ShakeCamera(tier);
             RefreshPlayerHpUI();
 
             if (CombatManager.Instance.IsPlayerDead())
@@ -660,6 +932,16 @@ namespace Pinball.Flow
                 levelClearPending = true;
                 chargeEnabled = false;
             }
+        }
+
+        private Color GetTierDisplayColor(int tier)
+        {
+            if (!BattleUIManager.IsInitialized)
+            {
+                return monsterDamageTextColor;
+            }
+
+            return BattleUIManager.Instance.GetTierDisplayColor(tier);
         }
 
         private void ShakeCamera(int tier)
@@ -704,25 +986,46 @@ namespace Pinball.Flow
         private float ChargeRollDuration(BigNumber amount)
         {
             BigNumber capacity = ScoringManager.Instance.ChargeCapacity;
+            float hardFloor = Mathf.Max(0.01f, minChargeRollDuration);
+            float ceiling = Mathf.Max(hardFloor, maxChargeRollDuration);
+
             if (capacity <= BigNumber.Zero)
             {
-                return 0f;
+                return hardFloor;
             }
 
             double pipes = (amount / capacity).ToDouble();
+
             if (double.IsNaN(pipes) || pipes <= 0.0)
             {
-                return 0.01f;
+                return hardFloor;
             }
 
             if (double.IsInfinity(pipes))
             {
-                return maxChargeRollDuration;
+                return Mathf.Clamp(chargeRollFloorDuration, hardFloor, ceiling);
             }
 
             float exponent = Mathf.Max(0.1f, chargeRollExponent);
-            float duration = Mathf.Pow((float)pipes, exponent) * chargeCountDurationPerPipe;
-            return Mathf.Clamp(duration, 0.05f, maxChargeRollDuration);
+            float knee = Mathf.Max(1f, chargeRollDecayKnee);
+            float duration;
+
+            if (pipes <= knee)
+            {
+                duration = Mathf.Pow((float)pipes, exponent) * chargeCountDurationPerPipe;
+            }
+            else
+            {
+                // 膝點是峰值；之後平滑「趨近」大數字漸近時長（不是硬夾住），
+                // 所以超大數字不會全部變成同一個秒數，小額也不會被地板撐慢。
+                float peak = Mathf.Max(hardFloor, Mathf.Pow(knee, exponent) * chargeCountDurationPerPipe);
+                float asymptote = Mathf.Clamp(chargeRollFloorDuration, hardFloor, peak);
+                float decay = Mathf.Max(0f, chargeRollDecayExponent);
+                float t = Mathf.Pow((float)(knee / pipes), decay);
+                duration = asymptote + (peak - asymptote) * t;
+            }
+
+            return Mathf.Clamp(duration, hardFloor, ceiling);
         }
 
         private void SkipAllAnimations()
@@ -737,6 +1040,13 @@ namespace Pinball.Flow
                 FloatingTextManager.Instance.CancelAll();
             }
 
+            while (pendingReleases.Count > 0)
+            {
+                PendingRelease pending = pendingReleases[0];
+                pendingReleases.RemoveAt(0);
+                ApplyReleaseDamage(pending);
+            }
+
             for (int i = 0; i < pendingPocketTexts.Count; i++)
             {
                 energyAddQueue.Enqueue(pendingPocketTexts[i].amount);
@@ -749,9 +1059,9 @@ namespace Pinball.Flow
             }
 
             rollActive = false;
-            rollBase = BigNumber.Zero;
-            rollAmount = BigNumber.Zero;
-            rollCurrent = ScoringManager.Instance.CurrentCharge;
+            rollFrom = ScoringManager.Instance.CurrentCharge;
+            rollTarget = rollFrom;
+            rollCurrent = rollFrom;
 
             if (chargeEnabled)
             {
@@ -775,7 +1085,7 @@ namespace Pinball.Flow
 
         private bool HasPendingSettleWork()
         {
-            return pendingPocketTexts.Count > 0 || energyAddQueue.Count > 0 || rollActive || (charging && chargeEnabled);
+            return pendingPocketTexts.Count > 0 || pendingReleases.Count > 0 || energyAddQueue.Count > 0 || rollActive || (charging && chargeEnabled);
         }
 
         private void TryAdvanceFlow()
@@ -850,16 +1160,25 @@ namespace Pinball.Flow
         private void ClearSettleState()
         {
             pendingPocketTexts.Clear();
+            pendingReleases.Clear();
             energyAddQueue.Clear();
             rollActive = false;
             rollCurrent = BigNumber.Zero;
-            rollBase = BigNumber.Zero;
-            rollAmount = BigNumber.Zero;
+            rollFrom = BigNumber.Zero;
+            rollTarget = BigNumber.Zero;
+            rollLayers = 0.0;
+            rollLayersAtStart = 0.0;
+            rollLayerSpan = 0.0;
             charging = false;
             chargeIdleTimer = 0f;
             releaseCooldown = 0f;
             settleBusy = false;
             chargeEnabled = false;
+
+            if (BattleUIManager.IsInitialized)
+            {
+                BattleUIManager.Instance.ClearAllChargeTexts();
+            }
         }
 
         private Vector2 GetChargeScreenPosition()
@@ -870,6 +1189,26 @@ namespace Pinball.Flow
             }
 
             return BattleUIManager.Instance.GetChargeScreenPosition();
+        }
+
+        private Vector2 GetChargeBaseScreenPosition()
+        {
+            if (!BattleUIManager.IsInitialized)
+            {
+                return new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            }
+
+            return BattleUIManager.Instance.GetChargeBaseScreenPosition();
+        }
+
+        private Vector2 GetChargeTierScreenPosition()
+        {
+            if (!BattleUIManager.IsInitialized)
+            {
+                return new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            }
+
+            return BattleUIManager.Instance.GetChargeTierScreenPosition();
         }
 
         private Vector2 GetMonsterHpScreenPosition()
